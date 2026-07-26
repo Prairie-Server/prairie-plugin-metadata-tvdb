@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	"github.com/Silo-Server/silo-plugin-tvdb/metadata"
-	"github.com/Silo-Server/silo-plugin-tvdb/provider"
+	pluginv1 "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginproto/prairie/plugin/v1"
+	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
+	"github.com/prairie-server/prairie-plugin-metadata-tvdb/provider"
 )
 
 func TestResolveImageURL(t *testing.T) {
