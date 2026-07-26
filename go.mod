@@ -3,7 +3,7 @@ module github.com/prairie-server/prairie-plugin-metadata-tvdb
 go 1.26.3
 
 require (
-	github.com/prairie-server/prairie-plugin-sdk v0.12.1-0.20260726223239-3c6de05cade7
+	github.com/prairie-server/prairie-plugin-sdk v0.12.1-0.20260726225228-1dfb0aebf7e0
 	golang.org/x/sync v0.20.0
 	golang.org/x/time v0.14.0
 	google.golang.org/protobuf v1.36.11
