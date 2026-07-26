@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/Silo-Server/silo-plugin-tvdb/metadata"
-	"github.com/Silo-Server/silo-plugin-tvdb/models"
+	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
+	"github.com/prairie-server/prairie-plugin-metadata-tvdb/models"
 )
 
 const maxCast = 20

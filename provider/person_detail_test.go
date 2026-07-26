@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Silo-Server/silo-plugin-tvdb/metadata"
+	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
 )
 
 func TestClientGetPersonExtended(t *testing.T) {

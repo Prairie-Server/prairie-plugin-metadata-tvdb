@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/Silo-Server/silo-plugin-tvdb/metadata"
+	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
 )
 
 func TestProviderSearchByTitleIncludesRemoteIDs(t *testing.T) {
