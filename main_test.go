@@ -209,7 +209,7 @@ func TestMetadataServerRPCSurface(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := provider.NewClient(1000)
+	client := provider.NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	ms := &metadataServer{runtime: &runtimeServer{provider: provider.NewProviderWithClient(client)}}
 
@@ -267,7 +267,7 @@ func TestMetadataServerPropagatesProviderErrors(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := provider.NewClient(1000)
+	client := provider.NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	ms := &metadataServer{runtime: &runtimeServer{provider: provider.NewProviderWithClient(client)}}
 

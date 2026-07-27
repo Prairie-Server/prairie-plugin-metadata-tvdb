@@ -7,7 +7,7 @@
     "display_name": "TVDB Metadata",
     "summary": "Fetch series, season, episode, and artwork metadata from TheTVDB.",
     "description_markdown": "Provides television metadata for series, seasons, and episodes, plus image resolution for TVDB artwork stored by Prairie. It complements other providers when a library relies on TVDB identities or ordering.",
-    "setup_markdown": "TVDB Metadata is installed as a default Prairie plugin. Add or enable **TVDB** in a television library's metadata provider chain; no plugin-specific configuration is required.",
+    "setup_markdown": "TVDB Metadata is installed as a default Prairie plugin. Add or enable **TVDB** in a television library's metadata provider chain.\n\nOperators must configure a **TVDB API key** for the plugin to authenticate with TheTVDB.",
     "homepage_url": "https://thetvdb.com",
     "source_url": "https://github.com/prairie-server/prairie-plugin-metadata-tvdb",
     "support_url": "https://github.com/prairie-server/prairie-plugin-metadata-tvdb/issues",
@@ -57,5 +57,24 @@
       }
     }
   ],
-  "global_config_schema": []
+  "global_config_schema": [
+    {
+      "key": "api_key",
+      "title": "TVDB API key",
+      "description": "TheTVDB v4 API key used for authenticated requests.",
+      "json_schema": "{\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"string\"}},\"required\":[\"value\"],\"additionalProperties\":false}",
+      "required": true,
+      "admin_form": {
+        "submit_label": "Save TVDB API key",
+        "fields": [
+          {
+            "key": "value",
+            "label": "API key",
+            "control": "ADMIN_FORM_CONTROL_PASSWORD",
+            "secret": true
+          }
+        ]
+      }
+    }
+  ]
 }

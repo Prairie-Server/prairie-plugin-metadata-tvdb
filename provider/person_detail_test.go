@@ -63,7 +63,7 @@ func TestClientGetPersonExtended(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 
 	person, err := client.GetPersonExtended(context.Background(), 321)
@@ -156,7 +156,7 @@ func TestProviderGetPersonDetail_UsesRemoteIDsAndPreferredBiography(t *testing.T
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 

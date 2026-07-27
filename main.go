@@ -78,12 +78,32 @@ func (s *runtimeServer) GetManifest(context.Context, *pluginv1.GetManifestReques
 	return &pluginv1.GetManifestResponse{Manifest: s.manifest}, nil
 }
 
-func (s *runtimeServer) Configure(_ context.Context, _ *pluginv1.ConfigureRequest) (*pluginv1.ConfigureResponse, error) {
+func (s *runtimeServer) Configure(_ context.Context, req *pluginv1.ConfigureRequest) (*pluginv1.ConfigureResponse, error) {
+	if req == nil || s.provider == nil {
+		return &pluginv1.ConfigureResponse{}, nil
+	}
+
+	apiKey := apiKeyFromConfig(req.GetConfig())
+	if apiKey != "" {
+		s.provider.SetAPIKey(apiKey)
+	}
 	return &pluginv1.ConfigureResponse{}, nil
 }
 
 func (s *runtimeServer) providerForRequest() (*provider.Provider, error) {
 	return s.provider, nil
+}
+
+func apiKeyFromConfig(entries []*pluginv1.ConfigEntry) string {
+	for _, entry := range entries {
+		if entry == nil || entry.GetKey() != "api_key" || entry.GetValue() == nil {
+			continue
+		}
+		if raw, ok := entry.GetValue().AsMap()["value"].(string); ok {
+			return strings.TrimSpace(raw)
+		}
+	}
+	return ""
 }
 
 func (s *metadataServer) Search(ctx context.Context, req *pluginv1.SearchMetadataRequest) (*pluginv1.SearchMetadataResponse, error) {
