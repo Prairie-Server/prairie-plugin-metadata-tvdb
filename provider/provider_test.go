@@ -78,6 +78,104 @@ func TestProviderSearchByTitleIncludesRemoteIDs(t *testing.T) {
 	}
 }
 
+func TestProviderValidationAndEmptyLookupBranches(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   map[string]any{"token": "test-token"},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/search/remoteid/tt-missing":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   []any{},
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(1000)
+	client.SetBaseURL(server.URL)
+	p := NewProviderWithClient(client)
+	ctx := context.Background()
+
+	if _, err := p.Search(ctx, metadata.SearchQuery{
+		ProviderIDs: map[string]string{"tvdb": "not-int"},
+		ContentType: "series",
+	}); err == nil {
+		t.Fatal("expected invalid TVDB search id error")
+	}
+	results, err := p.Search(ctx, metadata.SearchQuery{
+		ProviderIDs: map[string]string{"imdb": "tt-missing"},
+		ContentType: "movie",
+	})
+	if err != nil || results != nil {
+		t.Fatalf("missing imdb search = %#v err=%v", results, err)
+	}
+	results, err = p.Search(ctx, metadata.SearchQuery{
+		ProviderIDs: map[string]string{"tvdb": "1"},
+		ContentType: "episode",
+	})
+	if err != nil || results != nil {
+		t.Fatalf("unsupported search type = %#v err=%v", results, err)
+	}
+	results, err = p.Search(ctx, metadata.SearchQuery{})
+	if err != nil || results != nil {
+		t.Fatalf("empty search = %#v err=%v", results, err)
+	}
+
+	if _, err := p.GetMetadata(ctx, metadata.MetadataRequest{
+		ProviderIDs: map[string]string{"tvdb": "bad"},
+		ContentType: "series",
+	}); err == nil {
+		t.Fatal("expected invalid metadata id error")
+	}
+	if got, err := p.GetMetadata(ctx, metadata.MetadataRequest{
+		ProviderIDs: map[string]string{"tvdb": "1"},
+		ContentType: "episode",
+	}); err != nil || got != nil {
+		t.Fatalf("unsupported metadata = %#v err=%v", got, err)
+	}
+	if _, err := p.GetPersonDetail(ctx, metadata.PersonDetailRequest{
+		ProviderIDs: map[string]string{"tvdb": "bad"},
+	}); err == nil {
+		t.Fatal("expected invalid person id error")
+	}
+	if got, err := p.GetPersonDetail(ctx, metadata.PersonDetailRequest{
+		ProviderIDs: map[string]string{"imdb": "tt-missing"},
+	}); err != nil || got != nil {
+		t.Fatalf("missing person = %#v err=%v", got, err)
+	}
+	if _, err := p.GetImages(ctx, metadata.ImageRequest{
+		ProviderIDs: map[string]string{"tvdb": "bad"},
+		ContentType: "series",
+	}); err == nil {
+		t.Fatal("expected invalid images id error")
+	}
+	if imgs, err := p.GetImages(ctx, metadata.ImageRequest{
+		ProviderIDs: map[string]string{"tvdb": "1"},
+		ContentType: "episode",
+	}); err != nil || imgs != nil {
+		t.Fatalf("unsupported images = %#v err=%v", imgs, err)
+	}
+	if _, err := p.GetSeasons(ctx, metadata.SeasonsRequest{
+		ProviderIDs: map[string]string{"tvdb": "bad"},
+	}); err == nil {
+		t.Fatal("expected invalid seasons id error")
+	}
+	if _, err := p.GetEpisodes(ctx, metadata.EpisodesRequest{
+		ProviderIDs: map[string]string{"tvdb": "bad"},
+	}); err == nil {
+		t.Fatal("expected invalid episodes id error")
+	}
+}
+
 func TestGetSeriesMetadataIncludesSourceNameRemoteIDs(t *testing.T) {
 	t.Parallel()
 
@@ -1263,6 +1361,135 @@ func TestMovieNativeLanguageAndFirstReleaseYear(t *testing.T) {
 	}
 	if findBiography([]Biography{}, "en") != "" {
 		t.Fatal("empty biographies")
+	}
+}
+
+func TestProviderPropagatesEndpointErrors(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost && r.URL.Path == "/login" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"token": "t"}})
+			return
+		}
+		http.Error(w, "nope", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := NewClient(1000)
+	client.SetBaseURL(server.URL)
+	p := NewProviderWithClient(client)
+	ctx := context.Background()
+
+	if _, err := p.Search(ctx, metadata.SearchQuery{ProviderIDs: map[string]string{"tvdb": "1"}, ContentType: "movie"}); err == nil {
+		t.Fatal("expected movie id search error")
+	}
+	if _, err := p.Search(ctx, metadata.SearchQuery{ProviderIDs: map[string]string{"tvdb": "1"}, ContentType: "series"}); err == nil {
+		t.Fatal("expected series id search error")
+	}
+	if _, err := p.Search(ctx, metadata.SearchQuery{Title: "x", ContentType: "series"}); err == nil {
+		t.Fatal("expected title search error")
+	}
+	if _, err := p.Search(ctx, metadata.SearchQuery{ProviderIDs: map[string]string{"tmdb": "99"}, ContentType: "series"}); err == nil {
+		t.Fatal("expected tmdb remote id search error")
+	}
+	if _, err := p.GetPersonDetail(ctx, metadata.PersonDetailRequest{ProviderIDs: map[string]string{"tvdb": "1"}}); err == nil {
+		t.Fatal("expected person detail error")
+	}
+	if _, err := p.GetMetadata(ctx, metadata.MetadataRequest{ProviderIDs: map[string]string{"tvdb": "1"}, ContentType: "movie"}); err == nil {
+		t.Fatal("expected movie metadata error")
+	}
+	if _, err := p.GetMetadata(ctx, metadata.MetadataRequest{ProviderIDs: map[string]string{"tvdb": "1"}, ContentType: "series"}); err == nil {
+		t.Fatal("expected series metadata error")
+	}
+	if _, err := p.GetImages(ctx, metadata.ImageRequest{ProviderIDs: map[string]string{"tvdb": "1"}, ContentType: "movie"}); err == nil {
+		t.Fatal("expected movie images error")
+	}
+	if _, err := p.GetImages(ctx, metadata.ImageRequest{ProviderIDs: map[string]string{"tvdb": "1"}, ContentType: "series"}); err == nil {
+		t.Fatal("expected series images error")
+	}
+	if _, err := p.GetSeasons(ctx, metadata.SeasonsRequest{ProviderIDs: map[string]string{"tvdb": "1"}}); err == nil {
+		t.Fatal("expected seasons error")
+	}
+	if _, err := p.GetEpisodes(ctx, metadata.EpisodesRequest{ProviderIDs: map[string]string{"tvdb": "1"}, SeasonNumber: 1}); err == nil {
+		t.Fatal("expected episodes error")
+	}
+}
+
+func TestGetEpisodesTranslatedFetchError(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"token": "t"}})
+		case r.URL.Path == "/series/100/episodes/official":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"series":   map[string]any{"id": 100, "originalLanguage": "jpn"},
+					"episodes": []map[string]any{{"id": 1, "name": "JP", "number": 1, "seasonNumber": 1}},
+				},
+				"links": map[string]any{"next": nil},
+			})
+		case r.URL.Path == "/series/100/episodes/official/eng":
+			http.Error(w, "no translation", http.StatusBadRequest)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(1000)
+	client.SetBaseURL(server.URL)
+	_, err := NewProviderWithClient(client).GetEpisodes(context.Background(), metadata.EpisodesRequest{
+		ProviderIDs:  map[string]string{"tvdb": "100"},
+		SeasonNumber: 1,
+		Language:     "en",
+	})
+	if err == nil {
+		t.Fatal("expected translated episode fetch error")
+	}
+}
+
+func TestHelperEdgeBranches(t *testing.T) {
+	t.Parallel()
+
+	aliases := []metadata.TitleAlias{{Title: "Existing"}}
+	if got := appendTitleAlias(aliases, " ", "", "alternate"); len(got) != 1 {
+		t.Fatalf("blank alias appended: %#v", got)
+	}
+	if got := appendTitleAlias(aliases, "existing", "", "alternate"); len(got) != 1 {
+		t.Fatalf("duplicate alias appended: %#v", got)
+	}
+	if resolvedTitleLanguage("en", "jpn", "Original", "Original") != "ja" {
+		t.Fatal("expected fallback title language")
+	}
+	if resolvedTitleLanguage("", "jpn", "Original", "Original") != "ja" {
+		t.Fatal("expected original title language")
+	}
+	if got, ok := canonicalRemoteProviderID("tmdb", "not-number", "tt"); ok || got != "" {
+		t.Fatalf("invalid tmdb canonical id = %q %v", got, ok)
+	}
+	if got, ok := canonicalRemoteProviderID("imdb", "tt0000000", "tt"); ok || got != "" {
+		t.Fatalf("zero imdb canonical id = %q %v", got, ok)
+	}
+	if got, ok := canonicalRemoteProviderID("other", "1", "tt"); ok || got != "" {
+		t.Fatalf("unknown canonical id = %q %v", got, ok)
+	}
+	if remoteIDProvider(RemoteID{Type: 99, SourceName: "unknown"}) != "" {
+		t.Fatal("expected unknown remote provider")
+	}
+	if findBiography([]Biography{{Language: "en", Biography: "EN"}}, "de") != "EN" {
+		t.Fatal("expected English biography fallback")
+	}
+	if findBiography([]Biography{{Language: "fra", Biography: "FR"}}, "de") != "FR" {
+		t.Fatal("expected first biography fallback")
+	}
+	if findBiographyByLanguage([]Biography{{Language: "eng", Biography: ""}}, "en") != "" {
+		t.Fatal("expected empty biography to be skipped")
 	}
 }
 

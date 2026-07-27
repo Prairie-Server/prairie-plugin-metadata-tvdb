@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/models"
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/provider"
+	pluginsdkruntime "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginsdk/runtime"
 )
 
 func TestResolveImageURL(t *testing.T) {
@@ -114,6 +116,56 @@ func TestLoadManifestAndGetManifest(t *testing.T) {
 	}
 }
 
+func TestLoadManifestErrorPaths(t *testing.T) {
+	originalManifest := manifestJSON
+	originalExecutable := osExecutable
+	originalReadFile := osReadFile
+	t.Cleanup(func() {
+		manifestJSON = originalManifest
+		osExecutable = originalExecutable
+		osReadFile = originalReadFile
+	})
+
+	manifestJSON = []byte(`{`)
+	if _, err := loadManifest(); err == nil {
+		t.Fatal("expected invalid manifest error")
+	}
+	manifestJSON = originalManifest
+
+	osExecutable = func() (string, error) {
+		return "", errors.New("no executable")
+	}
+	if _, err := loadManifest(); err == nil {
+		t.Fatal("expected executable error")
+	}
+	osExecutable = originalExecutable
+
+	osReadFile = func(string) ([]byte, error) {
+		return nil, errors.New("read failed")
+	}
+	if _, err := loadManifest(); err == nil {
+		t.Fatal("expected read executable error")
+	}
+}
+
+func TestMainWiresRuntimeServers(t *testing.T) {
+	originalServe := runtimeServe
+	t.Cleanup(func() { runtimeServe = originalServe })
+
+	called := false
+	runtimeServe = func(cfg pluginsdkruntime.ServeConfig) {
+		called = true
+		if cfg.Servers.Runtime == nil || cfg.Servers.MetadataProvider == nil || cfg.Servers.ImageResolver == nil {
+			t.Fatalf("missing runtime servers: %#v", cfg.Servers)
+		}
+	}
+
+	main()
+	if !called {
+		t.Fatal("runtimeServe was not called")
+	}
+}
+
 func TestMetadataServerRPCSurface(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -201,6 +253,53 @@ func TestMetadataServerRPCSurface(t *testing.T) {
 	nilMeta, err := ms.GetMetadata(context.Background(), &pluginv1.GetMetadataRequest{ItemType: "series"})
 	if err != nil || (nilMeta != nil && nilMeta.GetItem() != nil) {
 		t.Fatalf("nil meta %#v err=%v", nilMeta, err)
+	}
+}
+
+func TestMetadataServerPropagatesProviderErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost && r.URL.Path == "/login" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"token": "t"}})
+			return
+		}
+		http.Error(w, "provider failed", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := provider.NewClient(1000)
+	client.SetBaseURL(server.URL)
+	ms := &metadataServer{runtime: &runtimeServer{provider: provider.NewProviderWithClient(client)}}
+
+	if _, err := ms.Search(context.Background(), &pluginv1.SearchMetadataRequest{Query: "x", ItemType: "series"}); err == nil {
+		t.Fatal("expected search error")
+	}
+	if _, err := ms.GetMetadata(context.Background(), &pluginv1.GetMetadataRequest{ProviderId: "1", ItemType: "series"}); err == nil {
+		t.Fatal("expected metadata error")
+	}
+	if _, err := ms.GetPersonDetail(context.Background(), &pluginv1.GetPersonDetailRequest{
+		ProviderIds: mustStruct(t, map[string]any{"tvdb": "1"}),
+	}); err == nil {
+		t.Fatal("expected person detail error")
+	}
+	if _, err := ms.GetSeasons(context.Background(), &pluginv1.GetSeasonsRequest{SeriesProviderId: "1"}); err == nil {
+		t.Fatal("expected seasons error")
+	}
+	if _, err := ms.GetEpisodes(context.Background(), &pluginv1.GetEpisodesRequest{SeriesProviderId: "1", SeasonNumber: 1}); err == nil {
+		t.Fatal("expected episodes error")
+	}
+	if _, err := ms.GetImages(context.Background(), &pluginv1.GetImagesRequest{ProviderId: "1", ItemType: "series"}); err == nil {
+		t.Fatal("expected images error")
+	}
+}
+
+func TestRecordConvertersRejectInvalidProviderIDKeys(t *testing.T) {
+	badIDs := map[string]string{string([]byte{0xff}): "bad"}
+	if _, err := metadataItemFromResult(&metadata.MetadataResult{ProviderIDs: badIDs}, "series"); err == nil {
+		t.Fatal("expected metadata item conversion error")
+	}
+	if _, err := personDetailRecordFromResult(&metadata.PersonDetailResult{ProviderIDs: badIDs}); err == nil {
+		t.Fatal("expected person detail conversion error")
 	}
 }
 

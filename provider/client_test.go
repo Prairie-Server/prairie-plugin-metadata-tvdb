@@ -173,6 +173,123 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
+	t.Run("invalid login request url", func(t *testing.T) {
+		t.Parallel()
+		c := NewClient(1000)
+		c.SetBaseURL("http://example.com/%zz")
+		if err := c.authenticate(context.Background()); err == nil {
+			t.Fatal("expected login request creation error")
+		}
+	})
+
+	t.Run("invalid get request url", func(t *testing.T) {
+		t.Parallel()
+		c := NewClient(1000)
+		c.SetBaseURL("http://example.com/%zz")
+		c.token = "t"
+		var dest map[string]any
+		if err := c.doGet(context.Background(), "", &dest); err == nil {
+			t.Fatal("expected get request creation error")
+		}
+	})
+
+	t.Run("get request failure", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		url := server.URL
+		server.Close()
+		c := NewClient(1000)
+		c.httpClient.Timeout = 50 * time.Millisecond
+		c.SetBaseURL(url)
+		c.token = "t"
+		var dest map[string]any
+		if err := c.doGet(context.Background(), "/down", &dest); err == nil {
+			t.Fatal("expected get request failure")
+		}
+	})
+}
+
+func TestClientEndpointErrorReturns(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			tvdbLoginOK(w)
+			return
+		}
+		http.Error(w, "nope", http.StatusBadRequest)
+	}))
+	t.Cleanup(server.Close)
+
+	c := NewClient(1000)
+	c.SetBaseURL(server.URL)
+
+	if _, err := c.Search(context.Background(), "x", "series"); err == nil {
+		t.Fatal("expected Search error")
+	}
+	if _, err := c.GetPersonExtended(context.Background(), 1); err == nil {
+		t.Fatal("expected GetPersonExtended error")
+	}
+	if _, err := c.GetMovieExtended(context.Background(), 1); err == nil {
+		t.Fatal("expected GetMovieExtended error")
+	}
+	if _, err := c.GetSeasonExtended(context.Background(), 1); err == nil {
+		t.Fatal("expected GetSeasonExtended error")
+	}
+	if _, err := c.GetSeriesTranslation(context.Background(), 1, "eng"); err == nil {
+		t.Fatal("expected GetSeriesTranslation error")
+	}
+	if _, err := c.GetMovieTranslation(context.Background(), 1, "eng"); err == nil {
+		t.Fatal("expected GetMovieTranslation error")
+	}
+	if _, err := c.GetEpisodeTranslation(context.Background(), 1, "eng"); err == nil {
+		t.Fatal("expected GetEpisodeTranslation error")
+	}
+}
+
+func TestClientAdditionalErrorBranches(t *testing.T) {
+	t.Parallel()
+
+	t.Run("token refresh failure", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/login" {
+				http.Error(w, "bad login", http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(server.Close)
+
+		c := NewClient(1000)
+		c.SetBaseURL(server.URL)
+		c.token = "old"
+		var dest map[string]any
+		if err := c.doGet(context.Background(), "/x", &dest); err == nil {
+			t.Fatal("expected token refresh failure")
+		}
+	})
+
+	t.Run("series episodes wrapper error", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/login" {
+				tvdbLoginOK(w)
+				return
+			}
+			http.Error(w, "nope", http.StatusBadRequest)
+		}))
+		t.Cleanup(server.Close)
+
+		c := NewClient(1000)
+		c.SetBaseURL(server.URL)
+		if _, _, err := c.GetSeriesEpisodes(context.Background(), 1, "official", "eng", 0); err == nil {
+			t.Fatal("expected GetSeriesEpisodes error")
+		}
+		if _, err := c.getAllSeriesEpisodes(context.Background(), 1, "official", "eng"); err == nil {
+			t.Fatal("expected getAllSeriesEpisodes error")
+		}
+	})
 }
 
 func TestEpisodesCachePurge(t *testing.T) {
