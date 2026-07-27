@@ -15,7 +15,7 @@ func tvdbLoginOK(w http.ResponseWriter) {
 }
 
 func TestNewClientDefaultRate(t *testing.T) {
-	c := NewClient(0)
+	c := NewClient("test-key", 0)
 	if c.limiter == nil {
 		t.Fatal("limiter nil")
 	}
@@ -45,7 +45,7 @@ func TestClientMovieSeasonTranslationEndpoints(t *testing.T) {
 		}
 	}))
 	t.Cleanup(server.Close)
-	c := NewClient(1000)
+	c := NewClient("test-key", 1000)
 	c.SetBaseURL(server.URL)
 	ctx := context.Background()
 	if m, err := c.GetMovieExtended(ctx, 9); err != nil || m.ID != 9 {
@@ -81,7 +81,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "missing"})
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		var dest map[string]any
 		if err := c.doGet(context.Background(), "/missing", &dest); err == nil {
@@ -104,7 +104,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{}})
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		var dest apiResponse[map[string]any]
 		if err := c.doGet(context.Background(), "/x", &dest); err != nil {
@@ -122,7 +122,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 		defer cancel()
@@ -141,7 +141,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 			w.WriteHeader(http.StatusBadGateway)
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 		defer cancel()
@@ -166,7 +166,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		var dest map[string]any
 		if err := c.doGet(context.Background(), "/x", &dest); err != nil {
@@ -176,7 +176,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 
 	t.Run("invalid login request url", func(t *testing.T) {
 		t.Parallel()
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL("http://example.com/%zz")
 		if err := c.authenticate(context.Background()); err == nil {
 			t.Fatal("expected login request creation error")
@@ -185,7 +185,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 
 	t.Run("invalid get request url", func(t *testing.T) {
 		t.Parallel()
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL("http://example.com/%zz")
 		c.token = "t"
 		var dest map[string]any
@@ -199,7 +199,7 @@ func TestClientDoGetErrorPaths(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 		url := server.URL
 		server.Close()
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.httpClient.Timeout = 50 * time.Millisecond
 		c.SetBaseURL(url)
 		c.token = "t"
@@ -221,7 +221,7 @@ func TestClientEndpointErrorReturns(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c := NewClient(1000)
+	c := NewClient("test-key", 1000)
 	c.SetBaseURL(server.URL)
 
 	if _, err := c.Search(context.Background(), "x", "series"); err == nil {
@@ -261,7 +261,7 @@ func TestClientAdditionalErrorBranches(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		c.token = "old"
 		var dest map[string]any
@@ -281,7 +281,7 @@ func TestClientAdditionalErrorBranches(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		if _, _, err := c.GetSeriesEpisodes(context.Background(), 1, "official", "eng", 0); err == nil {
 			t.Fatal("expected GetSeriesEpisodes error")
@@ -294,7 +294,7 @@ func TestClientAdditionalErrorBranches(t *testing.T) {
 
 func TestEpisodesCachePurge(t *testing.T) {
 	t.Parallel()
-	c := NewClient(1000)
+	c := NewClient("test-key", 1000)
 	c.episodesCache = map[string]episodesCacheEntry{}
 	for i := 0; i < episodesCacheMaxEntries; i++ {
 		c.episodesCache[string(rune(i))] = episodesCacheEntry{
@@ -320,7 +320,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			_, _ = w.Write([]byte("nope"))
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		if err := c.authenticate(context.Background()); err == nil {
 			t.Fatal("expected login error")
@@ -333,7 +333,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"token": ""}})
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		if err := c.authenticate(context.Background()); err == nil {
 			t.Fatal("expected empty token")
@@ -346,7 +346,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			_, _ = w.Write([]byte("{"))
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		if err := c.authenticate(context.Background()); err == nil {
 			t.Fatal("expected decode error")
@@ -370,7 +370,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"ok": true}})
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		var dest apiResponse[map[string]any]
 		if err := c.doGet(context.Background(), "/x", &dest); err != nil {
@@ -388,7 +388,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		var dest map[string]any
 		if err := c.doGet(context.Background(), "/x", &dest); err == nil {
@@ -415,7 +415,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			}
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		var dest map[string]any
 		mode.Store(0)
@@ -443,7 +443,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 		}))
 		t.Cleanup(server.Close)
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL(server.URL)
 		var dest map[string]any
 		if err := c.doGet(context.Background(), "/c", &dest); err != nil {
@@ -453,7 +453,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 
 	t.Run("canceled limiter", func(t *testing.T) {
 		t.Parallel()
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.SetBaseURL("http://127.0.0.1:1")
 		c.token = "x"
 		ctx, cancel := context.WithCancel(context.Background())
@@ -466,7 +466,7 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 
 	t.Run("refresh already updated", func(t *testing.T) {
 		t.Parallel()
-		c := NewClient(1000)
+		c := NewClient("test-key", 1000)
 		c.token = "new"
 		if err := c.refreshToken(context.Background(), "old"); err != nil {
 			t.Fatal(err)

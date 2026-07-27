@@ -51,7 +51,7 @@ func TestProviderSearchByTitleIncludesRemoteIDs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -100,7 +100,7 @@ func TestProviderValidationAndEmptyLookupBranches(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 	ctx := context.Background()
@@ -207,7 +207,7 @@ func TestGetSeriesMetadataIncludesSourceNameRemoteIDs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -307,7 +307,7 @@ func TestGetImagesReturnsArtworkImageURLs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -384,7 +384,7 @@ func TestGetImagesPrefersTVDBPrimaryPoster(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -460,7 +460,7 @@ func TestGetImagesAddsPrimaryPosterWhenArtworkListMissesIt(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -642,7 +642,7 @@ func TestGetSeriesMetadata_TranslatesNonNativeLanguage(t *testing.T) {
 	server := newTranslationTestServer(t, nil)
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -683,7 +683,7 @@ func TestGetSeriesMetadata_SkipsTranslationWhenLanguageMatchesOriginal(t *testin
 	server := newTranslationTestServer(t, &translationCalls)
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -714,7 +714,7 @@ func TestGetSeriesMetadata_UsesEmbeddedTranslationsWithoutDedicatedEndpoint(t *t
 	server := newTranslationTestServer(t, &translationCalls)
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -746,7 +746,7 @@ func TestGetEpisodes_TranslatesViaBulkEndpoint(t *testing.T) {
 	server := newTranslationTestServer(t, &translationCalls)
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -788,7 +788,7 @@ func TestGetEpisodes_SkipsTranslationWhenLanguageMatchesOriginal(t *testing.T) {
 	server := newTranslationTestServer(t, &translationCalls)
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -860,7 +860,7 @@ func TestGetEpisodes_PartialTranslationFailureKeepsOriginalData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -939,7 +939,7 @@ func TestGetEpisodes_CachesAcrossSeasons(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -1018,7 +1018,7 @@ func TestGetEpisodes_Paginates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -1070,7 +1070,7 @@ func TestGetSeriesMetadataCarriesShowStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -1132,7 +1132,7 @@ func TestProviderIdentityAndMovieSearchMetadata(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p = NewProviderWithClient(client)
 
@@ -1186,7 +1186,7 @@ func TestGetSeasonsWithTranslations(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	seasons, err := NewProviderWithClient(client).GetSeasons(context.Background(), metadata.SeasonsRequest{
 		ProviderIDs: map[string]string{"tvdb": "100"}, Language: "en",
@@ -1207,7 +1207,7 @@ func TestSearchBySeriesIDAndHelpers(t *testing.T) {
 	t.Parallel()
 	server := newTranslationTestServer(t, nil)
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 	results, err := p.Search(context.Background(), metadata.SearchQuery{
@@ -1282,7 +1282,7 @@ func TestMovieNativeLanguageAndFirstReleaseYear(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 
@@ -1377,7 +1377,7 @@ func TestProviderPropagatesEndpointErrors(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 	ctx := context.Background()
@@ -1442,7 +1442,7 @@ func TestGetEpisodesTranslatedFetchError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	_, err := NewProviderWithClient(client).GetEpisodes(context.Background(), metadata.EpisodesRequest{
 		ProviderIDs:  map[string]string{"tvdb": "100"},
@@ -1514,7 +1514,7 @@ func TestMovieTranslationEndpointFallback(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	meta, err := NewProviderWithClient(client).GetMetadata(context.Background(), metadata.MetadataRequest{
 		ProviderIDs: map[string]string{"tvdb": "8"}, ContentType: "movie", Language: "en",
@@ -1559,7 +1559,7 @@ func TestSeriesMetadataRichAndMaxCast(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	meta, err := NewProviderWithClient(client).GetMetadata(context.Background(), metadata.MetadataRequest{
 		ProviderIDs: map[string]string{"tvdb": "55"}, ContentType: "series", Language: "en",
@@ -1597,7 +1597,7 @@ func TestFindByRemoteIDMovieAndEmpty(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 	results, err := p.Search(context.Background(), metadata.SearchQuery{
@@ -1664,7 +1664,7 @@ func TestSeriesTranslationEndpointFallbackAndSeasonTranslationWarn(t *testing.T)
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 	meta, err := p.GetMetadata(context.Background(), metadata.MetadataRequest{
@@ -1696,7 +1696,7 @@ func TestGetPersonDetailErrorsAndImagesEmpty(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 	p := NewProviderWithClient(client)
 	if _, err := p.GetPersonDetail(context.Background(), metadata.PersonDetailRequest{

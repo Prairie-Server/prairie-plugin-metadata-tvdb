@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 
 const (
 	defaultBaseURL  = "https://api4.thetvdb.com/v4"
-	defaultAPIKey   = "9bad61f9-16d5-468d-9c98-4c4038c13706"
 	maxRetries      = 3
 	maxResponseBody = 2 << 20 // 2 MB
 
@@ -41,7 +41,7 @@ type Client struct {
 	apiKey     string
 	baseURL    string
 	token      string       // Bearer token from /login
-	tokenMu    sync.RWMutex // protects token read/write
+	tokenMu    sync.RWMutex // protects apiKey + token read/write
 	refreshMu  sync.Mutex   // serialises re-auth attempts
 	limiter    *rate.Limiter
 
@@ -61,15 +61,16 @@ type episodesCacheEntry struct {
 	fetchedAt time.Time
 }
 
-// NewClient creates a TVDB API client with the given rate limit (requests per
-// second). It uses the built-in project API key.
-func NewClient(rateLimit int) *Client {
+// NewClient creates a TVDB API client with the given API key and rate limit
+// (requests per second).
+func NewClient(apiKey string, rateLimit int) *Client {
 	if rateLimit <= 0 {
 		rateLimit = 50
 	}
+	apiKey = strings.TrimSpace(apiKey)
 	return &Client{
 		httpClient:    &http.Client{Timeout: 30 * time.Second},
-		apiKey:        defaultAPIKey,
+		apiKey:        apiKey,
 		baseURL:       defaultBaseURL,
 		limiter:       rate.NewLimiter(rate.Limit(rateLimit), rateLimit),
 		episodesCache: make(map[string]episodesCacheEntry),
@@ -81,13 +82,40 @@ func (c *Client) SetBaseURL(url string) {
 	c.baseURL = url
 }
 
+// SetAPIKey reconfigures the client for a new TheTVDB API key.
+// If the key changes, any cached bearer token is cleared.
+func (c *Client) SetAPIKey(apiKey string) {
+	newKey := strings.TrimSpace(apiKey)
+
+	// Serialize with any in-flight re-auth.
+	c.refreshMu.Lock()
+	defer c.refreshMu.Unlock()
+
+	c.tokenMu.Lock()
+	if c.apiKey == newKey {
+		c.tokenMu.Unlock()
+		return
+	}
+	c.apiKey = newKey
+	c.token = ""
+	c.tokenMu.Unlock()
+}
+
 // ---------------------------------------------------------------------------
 // Authentication
 // ---------------------------------------------------------------------------
 
 // authenticate posts to /login with the API key and stores the bearer token.
 func (c *Client) authenticate(ctx context.Context) error {
-	body, err := json.Marshal(map[string]string{"apikey": c.apiKey})
+	c.tokenMu.RLock()
+	apiKey := strings.TrimSpace(c.apiKey)
+	c.tokenMu.RUnlock()
+
+	if apiKey == "" {
+		return fmt.Errorf("tvdb: missing API key (configure api_key or set TVDB_API_KEY)")
+	}
+
+	body, err := json.Marshal(map[string]string{"apikey": apiKey})
 	if err != nil {
 		return fmt.Errorf("tvdb: marshal login body: %w", err)
 	}

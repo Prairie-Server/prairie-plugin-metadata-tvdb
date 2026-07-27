@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 
@@ -25,14 +26,24 @@ type Provider struct {
 	client *Client
 }
 
-// NewProvider creates a TVDB provider using the built-in project API key.
+// NewProvider creates a TVDB provider.
+//
+// The initial API key is taken from the TVDB_API_KEY environment variable.
+// Operators can later configure/rotate the key via the plugin's global
+// config (see Client.SetAPIKey).
 func NewProvider() *Provider {
-	return &Provider{client: NewClient(10)}
+	return &Provider{client: NewClient(strings.TrimSpace(os.Getenv("TVDB_API_KEY")), 10)}
 }
 
 // NewProviderWithClient creates a TVDB provider with a pre-configured client.
 func NewProviderWithClient(c *Client) *Provider {
 	return &Provider{client: c}
+}
+
+// SetAPIKey updates the provider's API key (clearing cached bearer tokens
+// inside the underlying client when the key changes).
+func (p *Provider) SetAPIKey(key string) {
+	p.client.SetAPIKey(key)
 }
 
 func (p *Provider) Slug() string       { return "tvdb" }
