@@ -3,8 +3,10 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +20,74 @@ func TestNewClientDefaultRate(t *testing.T) {
 	c := NewClient("test-key", 0)
 	if c.limiter == nil {
 		t.Fatal("limiter nil")
+	}
+}
+
+func TestClientSetAPIKey(t *testing.T) {
+	t.Parallel()
+
+	c := NewClient("key-one", 1000)
+	c.token = "cached-token"
+
+	c.SetAPIKey("key-one")
+	if c.getToken() != "cached-token" {
+		t.Fatal("same key should not clear cached token")
+	}
+
+	c.SetAPIKey("  key-two  ")
+	if c.apiKey != "key-two" {
+		t.Fatalf("apiKey = %q, want key-two", c.apiKey)
+	}
+	if c.getToken() != "" {
+		t.Fatal("token should be cleared when API key changes")
+	}
+}
+
+func TestClientAuthenticateMissingAPIKey(t *testing.T) {
+	t.Parallel()
+
+	c := NewClient("", 1000)
+	if err := c.authenticate(context.Background()); err == nil {
+		t.Fatal("expected missing API key error")
+	} else if !strings.Contains(err.Error(), "missing API key") {
+		t.Fatalf("err = %v", err)
+	}
+
+	var dest map[string]any
+	if err := c.doGet(context.Background(), "/x", &dest); err == nil {
+		t.Fatal("expected doGet error without API key")
+	} else if !strings.Contains(err.Error(), "missing API key") {
+		t.Fatalf("doGet err = %v", err)
+	}
+}
+
+func TestClientSetAPIKeyUsesNewKeyOnLogin(t *testing.T) {
+	t.Parallel()
+
+	var loginKeys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login" {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]string
+		_ = json.Unmarshal(body, &payload)
+		loginKeys = append(loginKeys, payload["apikey"])
+		tvdbLoginOK(w)
+	}))
+	t.Cleanup(server.Close)
+
+	c := NewClient("old-key", 1000)
+	c.SetBaseURL(server.URL)
+	c.token = "stale"
+	c.SetAPIKey("rotated-key")
+
+	if err := c.authenticate(context.Background()); err != nil {
+		t.Fatalf("authenticate() error = %v", err)
+	}
+	if len(loginKeys) != 1 || loginKeys[0] != "rotated-key" {
+		t.Fatalf("login keys = %v, want [rotated-key]", loginKeys)
 	}
 }
 

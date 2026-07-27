@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,51 @@ import (
 
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
 )
+
+func TestProviderSetAPIKey(t *testing.T) {
+	t.Parallel()
+
+	var loginKeys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/login":
+			body, _ := io.ReadAll(r.Body)
+			var payload map[string]string
+			_ = json.Unmarshal(body, &payload)
+			loginKeys = append(loginKeys, payload["apikey"])
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   map[string]any{"token": "test-token"},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/search":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient("old-key", 1000)
+	client.SetBaseURL(server.URL)
+	client.token = "stale"
+	p := NewProviderWithClient(client)
+
+	p.SetAPIKey("configured-key")
+	if client.getToken() != "" {
+		t.Fatal("token should be cleared when provider API key changes")
+	}
+
+	if _, err := p.Search(context.Background(), metadata.SearchQuery{
+		Title:       "x",
+		ContentType: "series",
+	}); err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(loginKeys) != 1 || loginKeys[0] != "configured-key" {
+		t.Fatalf("login keys = %v, want [configured-key]", loginKeys)
+	}
+}
 
 func TestProviderSearchByTitleIncludesRemoteIDs(t *testing.T) {
 	t.Parallel()
