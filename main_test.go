@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	pluginv1 "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginproto/prairie/plugin/v1"
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/models"
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/provider"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestResolveImageURL(t *testing.T) {
@@ -122,13 +123,13 @@ func TestMetadataServerRPCSurface(t *testing.T) {
 		case r.URL.Path == "/search":
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
 				"name": "Show", "year": "2001", "tvdb_id": "100", "overview": "ov",
-				"image_url": "https://artworks.thetvdb.com/banners/poster.jpg",
+				"image_url":        "https://artworks.thetvdb.com/banners/poster.jpg",
 				"primary_language": "eng",
 			}}})
 		case r.URL.Path == "/series/100/extended":
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
 				"id": 100, "name": "Show", "overview": "ov", "originalLanguage": "eng", "year": "2001",
-				"image": "https://artworks.thetvdb.com/banners/poster.jpg",
+				"image":  "https://artworks.thetvdb.com/banners/poster.jpg",
 				"status": map[string]any{"name": "Ended"},
 				"genres": []map[string]any{{"name": "Drama"}},
 				"artworks": []map[string]any{
@@ -136,12 +137,12 @@ func TestMetadataServerRPCSurface(t *testing.T) {
 					{"id": 2, "image": "https://artworks.thetvdb.com/banners/fanart.jpg", "type": 3, "score": 80, "width": 1920, "height": 1080},
 					{"id": 3, "image": "https://artworks.thetvdb.com/banners/logo.png", "type": 22, "score": 50, "width": 800, "height": 400},
 				},
-				"seasons": []map[string]any{{"id": 200, "number": 1, "image": "https://artworks.thetvdb.com/banners/s1.jpg", "type": map[string]any{"id": 1}}},
+				"seasons":    []map[string]any{{"id": 200, "number": 1, "image": "https://artworks.thetvdb.com/banners/s1.jpg", "type": map[string]any{"id": 1}}},
 				"characters": []map[string]any{{"personName": "Actor", "peopleId": 1, "peopleType": "Actor", "name": "Hero"}},
 			}})
 		case r.URL.Path == "/series/100/episodes/official":
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
-				"series": map[string]any{"id": 100, "originalLanguage": "eng"},
+				"series":   map[string]any{"id": 100, "originalLanguage": "eng"},
 				"episodes": []map[string]any{{"id": 301, "name": "Pilot", "overview": "ep", "number": 1, "seasonNumber": 1, "runtime": 42, "image": "https://artworks.thetvdb.com/banners/still.jpg"}},
 			}, "links": map[string]any{"next": nil}})
 		case r.URL.Path == "/people/7/extended":
@@ -149,7 +150,7 @@ func TestMetadataServerRPCSurface(t *testing.T) {
 				"id": 7, "name": "Person", "image": "https://artworks.thetvdb.com/banners/persons/7.jpg",
 				"birth": "1970-01-02", "birthPlace": "NY",
 				"biographies": []map[string]any{{"language": "eng", "biography": "Bio"}},
-				"remoteIds": []map[string]any{{"type": 2, "id": "nm7", "sourceName": "IMDB"}},
+				"remoteIds":   []map[string]any{{"type": 2, "id": "nm7", "sourceName": "IMDB"}},
 			}})
 		default:
 			http.NotFound(w, r)
