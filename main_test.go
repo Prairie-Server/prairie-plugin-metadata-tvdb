@@ -2,19 +2,20 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+
 	pluginv1 "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginproto/prairie/plugin/v1"
+	pluginsdkruntime "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginsdk/runtime"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/models"
 	"github.com/prairie-server/prairie-plugin-metadata-tvdb/provider"
-	pluginsdkruntime "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginsdk/runtime"
 )
 
 func TestResolveImageURL(t *testing.T) {
