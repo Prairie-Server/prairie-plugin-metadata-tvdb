@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  COVER_MIN: "40"
+  COVER_MIN: "90"
 
 jobs:
   lint:
