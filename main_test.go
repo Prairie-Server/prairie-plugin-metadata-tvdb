@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -58,6 +59,94 @@ func TestRuntimeServerConfigure_NoOp(t *testing.T) {
 	}
 	if p == nil {
 		t.Fatal("expected provider to be available")
+	}
+}
+
+func TestApiKeyFromConfig(t *testing.T) {
+	if got := apiKeyFromConfig(nil); got != "" {
+		t.Fatalf("nil config = %q, want empty", got)
+	}
+
+	otherValue := mustStruct(t, map[string]any{"value": "ignored"})
+	if got := apiKeyFromConfig([]*pluginv1.ConfigEntry{{
+		Key:   "other",
+		Value: otherValue,
+	}}); got != "" {
+		t.Fatalf("non-api_key entry = %q, want empty", got)
+	}
+
+	apiKeyValue := mustStruct(t, map[string]any{"value": "  configured-key  "})
+	if got := apiKeyFromConfig([]*pluginv1.ConfigEntry{{
+		Key:   "api_key",
+		Value: apiKeyValue,
+	}}); got != "configured-key" {
+		t.Fatalf("api_key value = %q, want configured-key", got)
+	}
+
+	badTypeValue := mustStruct(t, map[string]any{"value": 123})
+	if got := apiKeyFromConfig([]*pluginv1.ConfigEntry{{
+		Key:   "api_key",
+		Value: badTypeValue,
+	}}); got != "" {
+		t.Fatalf("non-string value = %q, want empty", got)
+	}
+}
+
+func TestRuntimeServerConfigure_ApiKey(t *testing.T) {
+	var loginKeys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/login":
+			body, _ := io.ReadAll(r.Body)
+			var payload map[string]string
+			_ = json.Unmarshal(body, &payload)
+			loginKeys = append(loginKeys, payload["apikey"])
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"token": "t"}})
+		case r.URL.Path == "/search":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := provider.NewClient("old-key", 1000)
+	client.SetBaseURL(server.URL)
+	rs := &runtimeServer{provider: provider.NewProviderWithClient(client)}
+
+	apiKeyValue := mustStruct(t, map[string]any{"value": "from-config"})
+	_, err := rs.Configure(context.Background(), &pluginv1.ConfigureRequest{
+		Config: []*pluginv1.ConfigEntry{{
+			Key:   "api_key",
+			Value: apiKeyValue,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Configure() error = %v", err)
+	}
+
+	_, err = rs.provider.Search(context.Background(), metadata.SearchQuery{
+		Title:       "x",
+		ContentType: "series",
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(loginKeys) != 1 || loginKeys[0] != "from-config" {
+		t.Fatalf("login keys = %v, want [from-config]", loginKeys)
+	}
+}
+
+func TestRuntimeServerConfigure_NilRequestAndProvider(t *testing.T) {
+	rs := &runtimeServer{provider: provider.NewProvider()}
+	if _, err := rs.Configure(context.Background(), nil); err != nil {
+		t.Fatalf("nil request error = %v", err)
+	}
+
+	nilProvider := &runtimeServer{}
+	if _, err := nilProvider.Configure(context.Background(), &pluginv1.ConfigureRequest{}); err != nil {
+		t.Fatalf("nil provider error = %v", err)
 	}
 }
 
