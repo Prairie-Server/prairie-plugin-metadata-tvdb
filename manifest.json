@@ -1,6 +1,6 @@
 {
   "plugin_id": "prairie.tvdb",
-  "version": "1.2.21",
+  "version": "1.2.25",
   "checksum": "__CHECKSUM__",
   "prairie_api_version": "v1",
   "presentation": {
