@@ -1005,15 +1005,15 @@ func TestProviderIdentityAndMovieSearchMetadata(t *testing.T) {
 				"status": "success",
 				"data": map[string]any{
 					"id": 42, "name": "Film", "originalLanguage": "fra", "runtime": 120, "year": "2010",
-					"image": "https://artworks.thetvdb.com/banners/movies/42.jpg",
+					"image":           "https://artworks.thetvdb.com/banners/movies/42.jpg",
 					"originalCountry": "fra",
-					"genres": []map[string]any{{"name": "Drama"}},
-					"studios": []map[string]any{{"name": "Studio"}},
-					"contentRatings": []map[string]any{{"country": "usa", "name": "R", "contentRating": "R"}},
-					"remoteIds": []map[string]any{{"type": 2, "id": "tt42", "sourceName": "IMDB"}, {"type": 12, "id": "99", "sourceName": "TheMovieDB.com"}},
-					"aliases": []map[string]any{{"language": "eng", "name": "English Film"}},
+					"genres":          []map[string]any{{"name": "Drama"}},
+					"studios":         []map[string]any{{"name": "Studio"}},
+					"contentRatings":  []map[string]any{{"country": "usa", "name": "R", "contentRating": "R"}},
+					"remoteIds":       []map[string]any{{"type": 2, "id": "tt42", "sourceName": "IMDB"}, {"type": 12, "id": "99", "sourceName": "TheMovieDB.com"}},
+					"aliases":         []map[string]any{{"language": "eng", "name": "English Film"}},
 					"translations": map[string]any{
-						"nameTranslations": []map[string]any{{"language": "eng", "name": "English Film"}},
+						"nameTranslations":     []map[string]any{{"language": "eng", "name": "English Film"}},
 						"overviewTranslations": []map[string]any{{"language": "eng", "overview": "English overview"}},
 					},
 					"characters": []map[string]any{
@@ -1152,7 +1152,7 @@ func TestMovieNativeLanguageAndFirstReleaseYear(t *testing.T) {
 		case r.URL.Path == "/movies/7/extended":
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
 				"id": 7, "name": "English Movie", "originalLanguage": "eng", "runtime": 90,
-				"image": "https://artworks.thetvdb.com/banners/m.jpg",
+				"image":         "https://artworks.thetvdb.com/banners/m.jpg",
 				"first_release": map[string]any{"date": "2015-06-01"},
 				"artworks": []map[string]any{
 					{"image": "https://artworks.thetvdb.com/banners/m.jpg", "type": 2, "score": 10, "width": 1, "height": 2},
@@ -1314,13 +1314,13 @@ func TestSeriesMetadataRichAndMaxCast(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
 				"id": 55, "name": "Show", "overview": "ov", "originalLanguage": "eng", "year": "1999",
 				"firstAired": "1999-01-01", "lastAired": "2000-01-01", "airsTime": "20:00",
-				"image": "https://artworks.thetvdb.com/banners/p.jpg",
-				"status": map[string]any{"name": "Ended"},
+				"image":           "https://artworks.thetvdb.com/banners/p.jpg",
+				"status":          map[string]any{"name": "Ended"},
 				"originalNetwork": map[string]any{"name": "NBC"},
-				"genres": []map[string]any{{"name": "Drama"}},
-				"contentRatings": []map[string]any{{"country": "usa", "name": "TV-14"}},
-				"aliases": []map[string]any{{"language": "fra", "name": "Émission"}},
-				"remoteIds": []map[string]any{{"type": 2, "id": "tt55", "sourceName": "IMDB"}},
+				"genres":          []map[string]any{{"name": "Drama"}},
+				"contentRatings":  []map[string]any{{"country": "usa", "name": "TV-14"}},
+				"aliases":         []map[string]any{{"language": "fra", "name": "Émission"}},
+				"remoteIds":       []map[string]any{{"type": 2, "id": "tt55", "sourceName": "IMDB"}},
 				"seasons": []map[string]any{
 					{"id": 1, "number": 1, "type": map[string]any{"id": 1}},
 					{"id": 2, "number": 0, "type": map[string]any{"id": 1}},
@@ -1423,7 +1423,7 @@ func TestSeriesTranslationEndpointFallbackAndSeasonTranslationWarn(t *testing.T)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
 				"id": 66, "name": "日本語", "overview": "JP ov", "originalLanguage": "jpn", "year": "2000",
 				"originalCountry": "jpn",
-				"seasons": []map[string]any{{"id": 9, "number": 1, "type": map[string]any{"id": 1}}},
+				"seasons":         []map[string]any{{"id": 9, "number": 1, "type": map[string]any{"id": 1}}},
 			}})
 		case r.URL.Path == "/series/66/translations/eng":
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{

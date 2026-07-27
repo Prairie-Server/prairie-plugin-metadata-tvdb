@@ -294,9 +294,6 @@ func TestClientAuthenticateFailuresAnd401Refresh(t *testing.T) {
 			case 1:
 				_, _ = w.Write([]byte("{"))
 			case 2:
-				if mode.Add(0) == 2 {
-					// first attempt 502 then ok — use call counter
-				}
 				w.WriteHeader(http.StatusBadGateway)
 			}
 		}))
