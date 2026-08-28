@@ -305,6 +305,28 @@ func TestFillRemoteIDsUsesTypeAndSourceNameWithoutOverwrite(t *testing.T) {
 	}
 }
 
+// artworkFixture builds a TVDB artwork JSON object for image test responses.
+// A nil includesText leaves the key out entirely, matching a provider that
+// does not report text presence; extra merges in optional keys such as
+// "thumbnail" or "language".
+func artworkFixture(id, artType int, url string, width, height, score int, includesText any, extra map[string]any) map[string]any {
+	artwork := map[string]any{
+		"id":     id,
+		"type":   artType,
+		"image":  url,
+		"width":  width,
+		"height": height,
+		"score":  score,
+	}
+	if includesText != nil {
+		artwork["includesText"] = includesText
+	}
+	for key, value := range extra {
+		artwork[key] = value
+	}
+	return artwork
+}
+
 func TestGetImagesReturnsArtworkImageURLs(t *testing.T) {
 	t.Parallel()
 
@@ -326,24 +348,13 @@ func TestGetImagesReturnsArtworkImageURLs(t *testing.T) {
 					"id":   99,
 					"name": "Series",
 					"artworks": []map[string]any{
-						{
-							"id":        1,
-							"type":      2,
-							"image":     "https://artworks.example/poster-original.jpg",
+						artworkFixture(1, 2, "https://artworks.example/poster-original.jpg", 2000, 3000, 10, true, map[string]any{
 							"thumbnail": "https://artworks.example/poster-thumb.jpg",
-							"width":     2000,
-							"height":    3000,
-							"score":     10,
-						},
-						{
-							"id":        2,
-							"type":      3,
-							"image":     "https://artworks.example/background-original.jpg",
+						}),
+						artworkFixture(2, 3, "https://artworks.example/background-original.jpg", 3840, 2160, 8, false, map[string]any{
 							"thumbnail": "",
-							"width":     3840,
-							"height":    2160,
-							"score":     8,
-						},
+						}),
+						artworkFixture(3, 22, "https://artworks.example/logo-original.png", 1000, 400, 7, nil, nil),
 					},
 				},
 			})
@@ -364,20 +375,266 @@ func TestGetImagesReturnsArtworkImageURLs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetImages() error = %v", err)
 	}
-	if len(images) != 2 {
-		t.Fatalf("len(images) = %d, want 2", len(images))
+	if len(images) != 3 {
+		t.Fatalf("len(images) = %d, want 3", len(images))
 	}
 
-	got := map[metadata.ImageType]string{}
+	got := map[metadata.ImageType]metadata.RemoteImage{}
 	for _, img := range images {
-		got[img.Type] = img.URL
+		got[img.Type] = img
 	}
 
-	if got[metadata.ImagePoster] != "https://artworks.example/poster-original.jpg" {
-		t.Fatalf("poster URL = %q", got[metadata.ImagePoster])
+	if got[metadata.ImagePoster].URL != "https://artworks.example/poster-original.jpg" {
+		t.Fatalf("poster URL = %q", got[metadata.ImagePoster].URL)
 	}
-	if got[metadata.ImageBackdrop] != "https://artworks.example/background-original.jpg" {
-		t.Fatalf("backdrop URL = %q", got[metadata.ImageBackdrop])
+	if got[metadata.ImagePoster].IncludesText == nil || !*got[metadata.ImagePoster].IncludesText {
+		t.Fatalf("poster IncludesText = %v, want true", got[metadata.ImagePoster].IncludesText)
+	}
+	if got[metadata.ImageBackdrop].URL != "https://artworks.example/background-original.jpg" {
+		t.Fatalf("backdrop URL = %q", got[metadata.ImageBackdrop].URL)
+	}
+	if got[metadata.ImageBackdrop].IncludesText == nil || *got[metadata.ImageBackdrop].IncludesText {
+		t.Fatalf("backdrop IncludesText = %v, want false", got[metadata.ImageBackdrop].IncludesText)
+	}
+	if got[metadata.ImageLogo].URL != "https://artworks.example/logo-original.png" {
+		t.Fatalf("logo URL = %q", got[metadata.ImageLogo].URL)
+	}
+	if got[metadata.ImageLogo].IncludesText != nil {
+		t.Fatalf("logo IncludesText = %v, want nil for an omitted provider value", got[metadata.ImageLogo].IncludesText)
+	}
+}
+
+func TestGetImagesReturnsExactSeasonGallery(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   map[string]any{"token": "test-token"},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/series/99/extended":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": 99,
+					"artworks": []map[string]any{{
+						"type": 2, "image": "https://artworks.example/show-poster.jpg",
+					}},
+					"seasons": []map[string]any{
+						{"id": 700, "number": 0, "type": map[string]any{"id": 1, "name": "Official"}},
+						{"id": 699, "number": 0, "type": map[string]any{"id": 1, "name": "Official"}},
+						{"id": 701, "number": 1, "type": map[string]any{"id": 1, "name": "Official"}},
+						{"id": 799, "number": 0, "type": map[string]any{"id": 2, "name": "DVD"}},
+					},
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/seasons/699/extended":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id":     699,
+					"number": 0,
+					"image":  "https://artworks.example/specials-primary.jpg",
+					"artwork": []map[string]any{
+						{"id": 1, "type": 7, "image": "https://artworks.example/specials-one.jpg", "language": "eng", "score": 9, "width": 2000, "height": 3000},
+						{"id": 2, "type": 14, "image": "https://artworks.example/specials-two.jpg", "language": "fra", "score": 8, "width": 2000, "height": 3000},
+						{"id": 3, "type": 7, "image": "https://artworks.example/specials-landscape.jpg", "score": 10, "width": 3840, "height": 2160},
+						{"id": 4, "type": 7, "image": "https://artworks.example/specials-unknown-size.jpg", "score": 10, "width": 0, "height": 0},
+					},
+				},
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient("test-key", 1000)
+	client.SetBaseURL(server.URL)
+	specials := 0
+	images, err := NewProviderWithClient(client).GetImages(context.Background(), metadata.ImageRequest{
+		ProviderIDs:  map[string]string{"tvdb": "99"},
+		ContentType:  "series",
+		SeasonNumber: &specials,
+	})
+	if err != nil {
+		t.Fatalf("GetImages() error = %v", err)
+	}
+	if len(images) != 3 {
+		t.Fatalf("images = %#v, want two season artworks plus primary", images)
+	}
+	gotURLs := make(map[string]bool, len(images))
+	for _, image := range images {
+		gotURLs[image.URL] = true
+		if image.Type != metadata.ImagePoster {
+			t.Fatalf("image type = %v, want season poster", image.Type)
+		}
+		if image.SeasonNumber == nil || *image.SeasonNumber != 0 {
+			t.Fatalf("image SeasonNumber = %v, want present Specials value 0", image.SeasonNumber)
+		}
+		if strings.Contains(image.URL, "show-poster") {
+			t.Fatalf("show poster leaked into exact season gallery: %#v", image)
+		}
+		if image.URL == "https://artworks.example/specials-primary.jpg" && image.Rating != 0 {
+			t.Fatalf("primary fallback rating = %v, want unknown score 0", image.Rating)
+		}
+	}
+	for _, want := range []string{
+		"https://artworks.example/specials-one.jpg",
+		"https://artworks.example/specials-unknown-size.jpg",
+		"https://artworks.example/specials-primary.jpg",
+	} {
+		if !gotURLs[want] {
+			t.Errorf("season gallery missing %q: %#v", want, images)
+		}
+	}
+	for _, rejected := range []string{
+		"https://artworks.example/specials-two.jpg",
+		"https://artworks.example/specials-landscape.jpg",
+	} {
+		if gotURLs[rejected] {
+			t.Errorf("season gallery included rejected artwork %q: %#v", rejected, images)
+		}
+	}
+}
+
+func TestGetImagesDoesNotAppendFilteredSeasonPrimary(t *testing.T) {
+	t.Parallel()
+
+	const filteredPrimary = "https://artworks.example/not-a-season-poster.jpg"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"token": "test-token"},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/series/99/extended":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": 99,
+					"seasons": []map[string]any{
+						{"id": 701, "number": 1, "type": map[string]any{"id": 1}},
+					},
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/seasons/701/extended":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": 701, "number": 1, "image": filteredPrimary,
+					"artwork": []map[string]any{
+						{"id": 1, "type": 14, "image": filteredPrimary, "width": 2000, "height": 3000},
+						{"id": 2, "type": 7, "image": "https://artworks.example/accepted.jpg", "width": 2000, "height": 3000},
+					},
+				},
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient("test-key", 1000)
+	client.SetBaseURL(server.URL)
+	seasonNumber := 1
+	images, err := NewProviderWithClient(client).GetImages(context.Background(), metadata.ImageRequest{
+		ProviderIDs: map[string]string{"tvdb": "99"}, ContentType: "series", SeasonNumber: &seasonNumber,
+	})
+	if err != nil {
+		t.Fatalf("GetImages() error = %v", err)
+	}
+	if len(images) != 1 || images[0].URL != "https://artworks.example/accepted.jpg" {
+		t.Fatalf("images = %#v, want only the accepted season poster", images)
+	}
+}
+
+func TestSeriesExtendedCacheSharedBySeasonsAndGallery(t *testing.T) {
+	t.Parallel()
+
+	var seriesCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"token": "test-token"},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/series/99/extended":
+			seriesCalls.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": 99,
+					"seasons": []map[string]any{
+						{"id": 701, "number": 1, "image": "https://artworks.example/season.jpg", "type": map[string]any{"id": 1}},
+					},
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/seasons/701/extended":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": 701, "number": 1, "image": "https://artworks.example/season.jpg",
+				},
+			})
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient("test-key", 1000)
+	client.SetBaseURL(server.URL)
+	provider := NewProviderWithClient(client)
+	seasons, err := provider.GetSeasons(context.Background(), metadata.SeasonsRequest{
+		ProviderIDs: map[string]string{"tvdb": "99"},
+	})
+	if err != nil {
+		t.Fatalf("GetSeasons() error = %v", err)
+	}
+	if len(seasons) != 1 {
+		t.Fatalf("seasons = %#v, want one official season", seasons)
+	}
+
+	seasonNumber := 1
+	images, err := provider.GetImages(context.Background(), metadata.ImageRequest{
+		ProviderIDs: map[string]string{"tvdb": "99"}, ContentType: "series", SeasonNumber: &seasonNumber,
+	})
+	if err != nil {
+		t.Fatalf("GetImages() error = %v", err)
+	}
+	if len(images) != 1 || images[0].URL != "https://artworks.example/season.jpg" || images[0].Rating != 0 {
+		t.Fatalf("images = %#v, want the zero-rated canonical season poster", images)
+	}
+	if got := seriesCalls.Load(); got != 1 {
+		t.Fatalf("series extended calls = %d, want 1 shared by seasons and gallery", got)
+	}
+}
+
+func TestEnsurePrimaryImagePreservesProviderScores(t *testing.T) {
+	t.Parallel()
+
+	images := []metadata.RemoteImage{
+		{URL: "https://artworks.example/primary.jpg", Type: metadata.ImagePoster, Rating: 7},
+		{URL: "https://artworks.example/top-voted.jpg", Type: metadata.ImagePoster, Rating: 9},
+	}
+	got := ensurePrimaryImage(images, metadata.ImagePoster, "https://artworks.example/primary.jpg", "", false)
+	if len(got) != 2 {
+		t.Fatalf("images = %#v, want no duplicate primary", got)
+	}
+	if got[0].Rating != 7 || got[1].Rating != 9 {
+		t.Fatalf("ratings = [%v, %v], want provider scores [7, 9]", got[0].Rating, got[1].Rating)
+	}
+
+	got = ensurePrimaryImage(got, metadata.ImagePoster, "https://artworks.example/missing-primary.jpg", "", false)
+	if len(got) != 3 || got[2].Rating != 0 {
+		t.Fatalf("missing primary = %#v, want appended poster with unknown score 0", got)
 	}
 }
 
@@ -403,24 +660,12 @@ func TestGetImagesPrefersTVDBPrimaryPoster(t *testing.T) {
 					"name":  "Series",
 					"image": "https://artworks.example/poster-primary.jpg",
 					"artworks": []map[string]any{
-						{
-							"id":       1,
-							"type":     2,
-							"image":    "https://artworks.example/poster-primary.jpg",
+						artworkFixture(1, 2, "https://artworks.example/poster-primary.jpg", 2000, 3000, 10, true, map[string]any{
 							"language": "eng",
-							"width":    2000,
-							"height":   3000,
-							"score":    10,
-						},
-						{
-							"id":       2,
-							"type":     2,
-							"image":    "https://artworks.example/poster-textless.jpg",
+						}),
+						artworkFixture(2, 2, "https://artworks.example/poster-textless.jpg", 2000, 3000, 11, false, map[string]any{
 							"language": "",
-							"width":    2000,
-							"height":   3000,
-							"score":    11,
-						},
+						}),
 					},
 				},
 			})
@@ -461,6 +706,12 @@ func TestGetImagesPrefersTVDBPrimaryPoster(t *testing.T) {
 	if primary.Language != "en" {
 		t.Fatalf("primary language = %q, want en", primary.Language)
 	}
+	if primary.IncludesText == nil || !*primary.IncludesText {
+		t.Fatalf("primary IncludesText = %v, want true", primary.IncludesText)
+	}
+	if textless.IncludesText == nil || *textless.IncludesText {
+		t.Fatalf("textless IncludesText = %v, want false", textless.IncludesText)
+	}
 	if primary.Rating <= textless.Rating {
 		t.Fatalf("primary rating = %v, textless rating = %v; want primary > textless", primary.Rating, textless.Rating)
 	}
@@ -488,15 +739,9 @@ func TestGetImagesAddsPrimaryPosterWhenArtworkListMissesIt(t *testing.T) {
 					"name":  "Series",
 					"image": "https://artworks.example/poster-primary.jpg",
 					"artworks": []map[string]any{
-						{
-							"id":       2,
-							"type":     2,
-							"image":    "https://artworks.example/poster-alt.jpg",
+						artworkFixture(2, 2, "https://artworks.example/poster-alt.jpg", 2000, 3000, 11, nil, map[string]any{
 							"language": "",
-							"width":    2000,
-							"height":   3000,
-							"score":    11,
-						},
+						}),
 					},
 				},
 			})

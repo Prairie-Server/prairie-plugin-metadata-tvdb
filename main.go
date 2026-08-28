@@ -277,22 +277,32 @@ func (s *metadataServer) GetImages(ctx context.Context, req *pluginv1.GetImagesR
 		case metadata.ImageLogo:
 			kind = "logo"
 		}
-		var md *structpb.Struct
-		if img.Rating > 0 {
-			md, _ = structpb.NewStruct(map[string]interface{}{
-				"rating": img.Rating,
-			})
-		}
-		response.Images = append(response.Images, &pluginv1.ImageRecord{
+		record := &pluginv1.ImageRecord{
 			Kind:     kind,
 			Url:      tvdbCanonicalPath(img.URL),
 			Language: img.Language,
 			Width:    int32(img.Width),
 			Height:   int32(img.Height),
-			Metadata: md,
-		})
+			Metadata: imageRecordMetadata(img),
+		}
+		if img.SeasonNumber != nil {
+			seasonNumber := int32(*img.SeasonNumber)
+			record.SeasonNumber = &seasonNumber
+		}
+		response.Images = append(response.Images, record)
 	}
 	return response, nil
+}
+
+func imageRecordMetadata(img metadata.RemoteImage) *structpb.Struct {
+	fields := make(map[string]any, 2)
+	if img.Rating > 0 {
+		fields["rating"] = img.Rating
+	}
+	if img.IncludesText != nil {
+		fields["includes_text"] = *img.IncludesText
+	}
+	return structFromMap(fields)
 }
 
 func (s *metadataServer) ResolveImageURL(_ context.Context, req *pluginv1.ResolveImageURLRequest) (*pluginv1.ResolveImageURLResponse, error) {
@@ -504,11 +514,16 @@ func episodesRequestFromProto(req *pluginv1.GetEpisodesRequest, capabilityID str
 }
 
 func imageRequestFromProto(req *pluginv1.GetImagesRequest, capabilityID string) metadata.ImageRequest {
-	return metadata.ImageRequest{
+	result := metadata.ImageRequest{
 		ProviderIDs: providerIDsFromProto(req.GetProviderIds(), capabilityID, req.GetProviderId()),
 		ContentType: req.GetItemType(),
 		Language:    req.GetLanguage(),
 	}
+	if req.SeasonNumber != nil {
+		seasonNumber := int(req.GetSeasonNumber())
+		result.SeasonNumber = &seasonNumber
+	}
+	return result
 }
 
 func stringStruct(value map[string]string) (*structpb.Struct, error) {
