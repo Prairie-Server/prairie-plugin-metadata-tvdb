@@ -152,7 +152,6 @@ func TestRuntimeServerConfigure_ApiKey(t *testing.T) {
 	defer server.Close()
 
 	client := provider.NewClient("old-key", 1000)
-	client.SetBaseURL(server.URL)
 	rs := &runtimeServer{provider: provider.NewProviderWithClient(client)}
 
 	apiKeyValue := mustStruct(t, map[string]any{"value": "from-config"})
@@ -165,6 +164,9 @@ func TestRuntimeServerConfigure_ApiKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Configure() error = %v", err)
 	}
+	// Configure resets the transport to direct TVDB (no metadata proxy), so
+	// point the client at the test server afterwards.
+	client.SetBaseURL(server.URL)
 
 	_, err = rs.provider.Search(context.Background(), metadata.SearchQuery{
 		Title:       "x",
@@ -187,6 +189,48 @@ func TestRuntimeServerConfigure_NilRequestAndProvider(t *testing.T) {
 	nilProvider := &runtimeServer{}
 	if _, err := nilProvider.Configure(context.Background(), &pluginv1.ConfigureRequest{}); err != nil {
 		t.Fatalf("nil provider error = %v", err)
+	}
+}
+
+func metadataProxyEntry(t *testing.T, values map[string]any) *pluginv1.ConfigEntry {
+	t.Helper()
+	value, err := structpb.NewStruct(values)
+	if err != nil {
+		t.Fatalf("structpb.NewStruct: %v", err)
+	}
+	return &pluginv1.ConfigEntry{Key: "metadata_proxy", Value: value}
+}
+
+func TestMetadataProxyURLFromConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		entries []*pluginv1.ConfigEntry
+		want    string
+	}{
+		{"no config", nil, ""},
+		{"enabled with url", []*pluginv1.ConfigEntry{metadataProxyEntry(t, map[string]any{"enabled": true, "url": " https://proxy.example/ "})}, "https://proxy.example/"},
+		{"enabled without url", []*pluginv1.ConfigEntry{metadataProxyEntry(t, map[string]any{"enabled": true})}, defaultMetadataProxyURL},
+		{"enabled with blank url", []*pluginv1.ConfigEntry{metadataProxyEntry(t, map[string]any{"enabled": true, "url": "  "})}, defaultMetadataProxyURL},
+		{"disabled", []*pluginv1.ConfigEntry{metadataProxyEntry(t, map[string]any{"enabled": false, "url": "https://proxy.example"})}, ""},
+		{"other keys ignored", []*pluginv1.ConfigEntry{nil, {Key: "something_else"}}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := metadataProxyURLFromConfig(tt.entries); got != tt.want {
+				t.Fatalf("metadataProxyURLFromConfig() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRuntimeServerConfigure_RejectsInvalidProxyURL(t *testing.T) {
+	server := &runtimeServer{provider: provider.NewProvider()}
+
+	_, err := server.Configure(context.Background(), &pluginv1.ConfigureRequest{
+		Config: []*pluginv1.ConfigEntry{metadataProxyEntry(t, map[string]any{"enabled": true, "url": "metadata.example.org"})},
+	})
+	if err == nil {
+		t.Fatal("Configure() accepted a proxy URL without a scheme")
 	}
 }
 
