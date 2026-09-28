@@ -31,6 +31,11 @@ var (
 	runtimeServe = runtime.Serve
 )
 
+// defaultMetadataProxyURL is used when the proxy is enabled without a URL.
+// Prairie does not operate a shared metadata proxy, so there is no default:
+// enabling the proxy without a URL keeps direct TVDB access.
+const defaultMetadataProxyURL = ""
+
 func tvdbCanonicalPath(imageURL string) string {
 	if imageURL == "" {
 		return ""
@@ -87,7 +92,32 @@ func (s *runtimeServer) Configure(_ context.Context, req *pluginv1.ConfigureRequ
 	if apiKey != "" {
 		s.provider.SetAPIKey(apiKey)
 	}
+
+	proxyURL := metadataProxyURLFromConfig(req.GetConfig())
+	if err := s.provider.SetMetadataProxyURL(proxyURL); err != nil {
+		return nil, err
+	}
 	return &pluginv1.ConfigureResponse{}, nil
+}
+
+// metadataProxyURLFromConfig returns the configured metadata proxy base
+// URL, or "" when the proxy is disabled or unset.
+func metadataProxyURLFromConfig(entries []*pluginv1.ConfigEntry) string {
+	for _, entry := range entries {
+		if entry == nil || entry.GetKey() != "metadata_proxy" || entry.GetValue() == nil {
+			continue
+		}
+		values := entry.GetValue().AsMap()
+		enabled, _ := values["enabled"].(bool)
+		if !enabled {
+			return ""
+		}
+		if raw, ok := values["url"].(string); ok && strings.TrimSpace(raw) != "" {
+			return strings.TrimSpace(raw)
+		}
+		return defaultMetadataProxyURL
+	}
+	return ""
 }
 
 func (s *runtimeServer) providerForRequest() (*provider.Provider, error) {
