@@ -17,9 +17,12 @@ The plugin's **Configure** tab has a *Metadata Proxy* section. Turning it on and
 supplying a proxy URL routes every TVDB request through a TVDB-compatible
 caching proxy instead of `api4.thetvdb.com`. Prairie does not operate a shared
 proxy, so there is no default URL; with the switch on and the URL blank, the
-plugin keeps calling TVDB directly. When the proxy is busy, the plugin waits as
-long as its `Retry-After` header asks, up to the request's deadline. Saving the
-setting reloads the plugin; no server restart is needed.
+plugin keeps calling TVDB directly. The proxy receives your TVDB API key, so its
+URL must use `https`; plain `http` is accepted only for `localhost` or a loopback
+address. When the proxy is busy, the plugin waits as long as its `Retry-After`
+header asks, until either the request's deadline or a 10-minute cap on total
+waiting for that request is reached, whichever comes first. Saving the setting
+reloads the plugin; no server restart is needed.
 
 ## Dependency Model
 

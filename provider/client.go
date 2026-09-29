@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -131,11 +132,25 @@ func (c *Client) SetProxyURL(proxyURL string) error {
 		return nil
 	}
 	parsed, err := url.Parse(proxyURL)
-	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.Host == "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return fmt.Errorf("tvdb: invalid metadata proxy URL %q", proxyURL)
+	}
+	// The TVDB API key and bearer token travel to the proxy, so plaintext
+	// http is only accepted for a proxy on this machine.
+	if parsed.Scheme != "https" && (parsed.Scheme != "http" || !isLoopbackHost(parsed.Hostname())) {
+		return fmt.Errorf("tvdb: metadata proxy URL %q must use https (http is allowed only for localhost)", proxyURL)
 	}
 	c.setTransport(proxyURL+proxyPathPrefix, true)
 	return nil
+}
+
+// isLoopbackHost reports whether host is localhost or a loopback IP address.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // ProxyMode reports whether requests are routed through a metadata proxy.
@@ -231,7 +246,7 @@ func (c *Client) authenticate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("tvdb: login request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
@@ -330,7 +345,7 @@ func (c *Client) doGet(ctx context.Context, path string, dest any) error {
 
 		// 401 Unauthorized — refresh token and retry once.
 		if resp.StatusCode == http.StatusUnauthorized {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			authRetries++
 			if authRetries > 1 {
 				return fmt.Errorf("tvdb: authentication failed after token refresh")
@@ -376,7 +391,7 @@ func (c *Client) doGet(ctx context.Context, path string, dest any) error {
 
 		// 429 Too Many Requests.
 		if resp.StatusCode == http.StatusTooManyRequests {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			retryAfter := resp.Header.Get("Retry-After")
 			if attempt < maxRetries {
 				backoff := retryAfterOrDefault(resp, attempt)
@@ -403,7 +418,7 @@ func (c *Client) doGet(ctx context.Context, path string, dest any) error {
 
 		// 5xx — retry with exponential backoff.
 		if resp.StatusCode >= 500 {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if attempt < maxRetries {
 				backoff := time.Duration(1<<attempt) * time.Second
 				select {
@@ -419,7 +434,7 @@ func (c *Client) doGet(ctx context.Context, path string, dest any) error {
 		// 4xx — client error, no retry.
 		if resp.StatusCode >= 400 {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			var apiErr apiError
 			if err := json.Unmarshal(body, &apiErr); err == nil && apiErr.Message != "" {
 				return fmt.Errorf("tvdb: HTTP %d: %s", resp.StatusCode, apiErr.Message)
@@ -429,7 +444,7 @@ func (c *Client) doGet(ctx context.Context, path string, dest any) error {
 
 		// 2xx — decode response.
 		decodeErr := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBody)).Decode(dest)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if decodeErr != nil {
 			return fmt.Errorf("tvdb: decode response: %w", decodeErr)
 		}

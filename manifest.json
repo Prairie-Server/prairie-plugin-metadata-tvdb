@@ -95,7 +95,7 @@
           {
             "key": "url",
             "label": "Proxy URL",
-            "description": "Base URL of the metadata proxy, for example https://metadata.example.org. Leave blank to call TVDB directly.",
+            "description": "Base URL of the metadata proxy, for example https://metadata.example.org. Must use https; http is accepted only for localhost. Leave blank to call TVDB directly.",
             "control": "ADMIN_FORM_CONTROL_TEXT",
             "placeholder": "https://metadata.example.org",
             "show_when": [

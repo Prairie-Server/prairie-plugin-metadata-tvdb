@@ -166,7 +166,7 @@ func TestSetProxyURLKeepsSessionWhenUnchanged(t *testing.T) {
 
 func TestSetProxyURLRejectsGarbage(t *testing.T) {
 	c := NewClient("test-key", 1000)
-	for _, bad := range []string{"metadata.example.org", "ftp://x", "https://", "https://h/?x=1", "https://h/#f"} {
+	for _, bad := range []string{"metadata.example.org", "ftp://x", "https://", "https://h/?x=1", "https://h/#f", "http://metadata.example.org", "http://10.0.0.5:8080", "http://localhost.example.org"} {
 		if err := c.SetProxyURL(bad); err == nil {
 			t.Errorf("SetProxyURL(%q) accepted", bad)
 		}
@@ -266,5 +266,18 @@ func TestTransportSwitchDuringRequestRetriesAgainstNewUpstream(t *testing.T) {
 	}
 	if out.Data.ID != 81189 || newHits.Load() != 1 {
 		t.Fatalf("decoded id %d with %d hits on the new upstream, want 81189 and 1", out.Data.ID, newHits.Load())
+	}
+}
+
+func TestSetProxyURLAllowsPlainHTTPOnlyForLoopback(t *testing.T) {
+	for _, good := range []string{"https://metadata.example.org", "http://localhost:8080", "http://LOCALHOST", "http://127.0.0.1:9000", "http://127.0.0.53", "http://[::1]:8080"} {
+		c := NewClient("test-key", 1000)
+		if err := c.SetProxyURL(good); err != nil {
+			t.Errorf("SetProxyURL(%q) = %v, want accepted", good, err)
+			continue
+		}
+		if _, proxy := c.transport(); !proxy {
+			t.Errorf("SetProxyURL(%q) did not enable proxy mode", good)
+		}
 	}
 }
