@@ -11,30 +11,18 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	pluginv1 "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginproto/prairie/plugin/v1"
-	publicmanifest "github.com/prairie-server/prairie-plugin-sdk/pkg/pluginsdk/manifest"
-	"github.com/prairie-server/prairie-plugin-sdk/pkg/pluginsdk/runtime"
-
-	"github.com/prairie-server/prairie-plugin-metadata-tvdb/metadata"
-	"github.com/prairie-server/prairie-plugin-metadata-tvdb/models"
-	"github.com/prairie-server/prairie-plugin-metadata-tvdb/provider"
+	pluginv1 "github.com/Prairie-Server/prairie-plugin-sdk/pkg/pluginproto/prairie/plugin/v1"
+	publicmanifest "github.com/Prairie-Server/prairie-plugin-sdk/pkg/pluginsdk/manifest"
+	"github.com/Prairie-Server/prairie-plugin-sdk/pkg/pluginsdk/runtime"
+	"github.com/Prairie-Server/prairie-plugin-tvdb/metadata"
+	"github.com/Prairie-Server/prairie-plugin-tvdb/models"
+	"github.com/Prairie-Server/prairie-plugin-tvdb/provider"
 )
 
 // version is set at build time via -ldflags "-X main.version=...".
 var version string
 
 const tvdbArtworksBase = "https://artworks.thetvdb.com/"
-
-var (
-	osExecutable = os.Executable
-	osReadFile   = os.ReadFile
-	runtimeServe = runtime.Serve
-)
-
-// defaultMetadataProxyURL is used when the proxy is enabled without a URL.
-// Prairie does not operate a shared metadata proxy, so there is no default:
-// enabling the proxy without a URL keeps direct TVDB access.
-const defaultMetadataProxyURL = ""
 
 func tvdbCanonicalPath(imageURL string) string {
 	if imageURL == "" {
@@ -83,57 +71,12 @@ func (s *runtimeServer) GetManifest(context.Context, *pluginv1.GetManifestReques
 	return &pluginv1.GetManifestResponse{Manifest: s.manifest}, nil
 }
 
-func (s *runtimeServer) Configure(_ context.Context, req *pluginv1.ConfigureRequest) (*pluginv1.ConfigureResponse, error) {
-	if req == nil || s.provider == nil {
-		return &pluginv1.ConfigureResponse{}, nil
-	}
-
-	apiKey := apiKeyFromConfig(req.GetConfig())
-	if apiKey != "" {
-		s.provider.SetAPIKey(apiKey)
-	}
-
-	proxyURL := metadataProxyURLFromConfig(req.GetConfig())
-	if err := s.provider.SetMetadataProxyURL(proxyURL); err != nil {
-		return nil, err
-	}
+func (s *runtimeServer) Configure(_ context.Context, _ *pluginv1.ConfigureRequest) (*pluginv1.ConfigureResponse, error) {
 	return &pluginv1.ConfigureResponse{}, nil
-}
-
-// metadataProxyURLFromConfig returns the configured metadata proxy base
-// URL, or "" when the proxy is disabled or unset.
-func metadataProxyURLFromConfig(entries []*pluginv1.ConfigEntry) string {
-	for _, entry := range entries {
-		if entry == nil || entry.GetKey() != "metadata_proxy" || entry.GetValue() == nil {
-			continue
-		}
-		values := entry.GetValue().AsMap()
-		enabled, _ := values["enabled"].(bool)
-		if !enabled {
-			return ""
-		}
-		if raw, ok := values["url"].(string); ok && strings.TrimSpace(raw) != "" {
-			return strings.TrimSpace(raw)
-		}
-		return defaultMetadataProxyURL
-	}
-	return ""
 }
 
 func (s *runtimeServer) providerForRequest() (*provider.Provider, error) {
 	return s.provider, nil
-}
-
-func apiKeyFromConfig(entries []*pluginv1.ConfigEntry) string {
-	for _, entry := range entries {
-		if entry == nil || entry.GetKey() != "api_key" || entry.GetValue() == nil {
-			continue
-		}
-		if raw, ok := entry.GetValue().AsMap()["value"].(string); ok {
-			return strings.TrimSpace(raw)
-		}
-	}
-	return ""
 }
 
 func (s *metadataServer) Search(ctx context.Context, req *pluginv1.SearchMetadataRequest) (*pluginv1.SearchMetadataResponse, error) {
@@ -360,7 +303,7 @@ func main() {
 	}
 
 	ms := &metadataServer{runtime: rs}
-	runtimeServe(runtime.ServeConfig{
+	runtime.Serve(runtime.ServeConfig{
 		Servers: runtime.CapabilityServers{
 			Runtime:          rs,
 			MetadataProvider: ms,
@@ -379,11 +322,11 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 		manifest.Version = version
 	}
 
-	executablePath, err := osExecutable()
+	executablePath, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("resolve executable path: %w", err)
 	}
-	binaryData, err := osReadFile(executablePath)
+	binaryData, err := os.ReadFile(executablePath)
 	if err != nil {
 		return nil, fmt.Errorf("read executable %q: %w", executablePath, err)
 	}
