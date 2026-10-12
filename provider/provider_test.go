@@ -435,7 +435,7 @@ func TestGetImagesUsesMovieClearLogoNotClearArt(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(1000)
+	client := NewClient("test-key", 1000)
 	client.SetBaseURL(server.URL)
 
 	images, err := NewProviderWithClient(client).GetImages(context.Background(), metadata.ImageRequest{
@@ -1800,7 +1800,7 @@ func TestMovieNativeLanguageAndFirstReleaseYear(t *testing.T) {
 				"artworks": []map[string]any{
 					{"image": "https://artworks.thetvdb.com/banners/m.jpg", "type": 2, "score": 10, "width": 1, "height": 2},
 					{"image": "https://artworks.thetvdb.com/banners/b.jpg", "type": 3, "score": 5, "width": 3, "height": 4},
-					{"image": "https://artworks.thetvdb.com/banners/l.png", "type": 22, "score": 1, "width": 5, "height": 6},
+					{"image": "https://artworks.thetvdb.com/banners/l.png", "type": 25, "score": 1, "width": 5, "height": 6},
 					{"image": "https://artworks.thetvdb.com/banners/x.jpg", "type": 99, "score": 1},
 				},
 				"characters": []map[string]any{

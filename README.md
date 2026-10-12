@@ -1,18 +1,32 @@
 # TVDB Metadata Plugin for Prairie
 
-First-party [Prairie](https://github.com/Prairie-Server/prairie-server) metadata plugin
+First-party [Prairie](https://github.com/prairie-server/prairie-server) metadata plugin
 backed by TheTVDB. It provides series, season, and episode metadata and resolves
 `tvdb://` artwork references.
 
 ## Setup
 
-TVDB Metadata is installed as a default Prairie plugin. Add or enable **TVDB** in a
-television library's metadata provider chain; no plugin-specific configuration
-is required.
+TVDB Metadata is installed as a default Prairie plugin. Enter a TheTVDB v4 API
+key in the plugin's `api_key` setting, then add or enable **TVDB** in a
+television library's metadata provider chain. Requests fail with a
+"missing API key" error until a key is configured.
+
+### Metadata proxy
+
+The plugin's **Configure** tab has a *Metadata Proxy* section. Turning it on and
+supplying a proxy URL routes every TVDB request through a TVDB-compatible
+caching proxy instead of `api4.thetvdb.com`. Prairie does not operate a shared
+proxy, so there is no default URL; with the switch on and the URL blank, the
+plugin keeps calling TVDB directly. The proxy receives your TVDB API key, so its
+URL must use `https`; plain `http` is accepted only for `localhost` or a loopback
+address. When the proxy is busy, the plugin waits as long as its `Retry-After`
+header asks, until either the request's deadline or a 10-minute cap on total
+waiting for that request is reached, whichever comes first. Saving the setting
+reloads the plugin; no server restart is needed.
 
 ## Dependency Model
 
-This repository consumes `github.com/Prairie-Server/prairie-plugin-sdk` as a normal Go module dependency. CI and release builds run with `GOWORK=off` and expect the SDK version in `go.mod` to resolve from a published semver tag.
+This repository consumes `github.com/prairie-server/prairie-plugin-sdk` as a normal Go module dependency. CI and release builds run with `GOWORK=off` and expect the SDK version in `go.mod` to resolve from a published semver tag.
 
 For local multi-repository development, use a `go.work` file that points at a
 sibling SDK checkout. Do not commit machine-local filesystem replacements.
